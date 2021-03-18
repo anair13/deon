@@ -6,7 +6,7 @@ import json
 import h5py
 from pathlib import Path
 
-from s3sync import SmartS3Sync
+from deon.s3sync import SmartS3Sync
 import logging
 
 def sync_s3(local, s3path, fromS3, interval, force, **kwargs):
@@ -48,6 +48,7 @@ def up(local_path, interval, force, **kwargs):
 @click.option('--profile', is_flag=True)
 @click.option('--log', default=20) # 10=DEBUG, 20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL
 def down(local_path, force, interval, **kwargs):
+    """Sync data down: remote -> local"""
     local = local_path
     s3path = local_path
     fromS3 = True
@@ -74,6 +75,12 @@ def syncdown(local_dir, force, interval, **kwargs):
 
     s3_sync = SmartS3Sync(local = local, s3path = s3path, **kwargs)
     s3_sync.sync_metadata_fromS3(force = force, show_progress = False)
+
+
+@metadata.command()
+def build():
+    """Build metadata index: TODO"""
+    pass
 
 
 @cli.command()
