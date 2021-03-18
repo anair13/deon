@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+# export PATH=$PATH":/Users/ashvin/code/gauss/deon"
+
+from deon import cli
+
+if __name__ == "__main__":
+    cli()
