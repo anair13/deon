@@ -8,7 +8,9 @@ selectively filter and download data from other users.
 
 ## Installation
 Source python > 3.5
+
 `pip install -r requirements.txt`
+
 `pip install -e .`
 
 ## Data Format
@@ -19,15 +21,23 @@ without downloading the entire dataset.
 
 ## Usage
 Print list of accessible buckets from S3
+
 `deoncli buckets`
+
 Sync data down: remote -> local
+
 `deoncli down <bucket>/<prefix>`
+
 Sync data up: local -> remote
+
 `deoncli up <bucket>/<prefix>`
 
 Sync metadata down
+
 `deoncli metadata down <bucket>/<prefix>`
+
 Sync specific files down
+
 ```
 $ deoncli metadata load rail-robot-data-sharing-v1/mini-robonet
 loaded data frame df
@@ -41,5 +51,7 @@ ipdb> filtered_df = df[df['robot'] == "sawyer"]
 ipdb> sync_files_s3(filtered_df.index, force=False)
 INFO:SmartS3Sync:local files are up to date
 ```
+
 Visualize hdf5 file (TODO)
+
 `deoncli metadata down <filename>.hdf5`
