@@ -94,7 +94,7 @@ def metadata():
 @click.option('--metadata', is_flag=True)
 @click.option('--profile', is_flag=True)
 @click.option('--log', default=20) # 10=DEBUG, 20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL
-def syncdown(local_dir, force, interval, **kwargs):
+def down(local_dir, force, interval, **kwargs):
     """Sync metadata of data path <local_dir> down"""
     local = local_dir
     s3path = local_dir

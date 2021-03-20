@@ -219,7 +219,7 @@ class DirectoryWalk():
             for f in sorted(local):
                 self.file.update({f:s3util.dzip_meta(f)})
         else:
-            d = sorted(os.walk(local))
+            d = sorted(os.walk(local, followlinks=True))
             if len(d) == 0 and os.path.isfile(local):
                 self.logger.debug(local + ' is a file.')
                 self.isdir = False
