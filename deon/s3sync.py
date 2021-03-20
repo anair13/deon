@@ -215,17 +215,21 @@ class DirectoryWalk():
         """
         self.logger.debug('walking local directory or file')
         s3util = S3SyncUtility()
-        d = sorted(os.walk(local))
-        if len(d) == 0 and os.path.isfile(local):
-            self.logger.debug(local + ' is a file.')
-            self.isdir = False
-        for a,b,c in d:
-            self.root.update({a:s3util.dzip_meta(a)})
-            if c:
-                for f in c:
-                    if f in IGNORE_FILES:
-                        continue
-                    self.file.update({os.path.join(a, f):s3util.dzip_meta(os.path.join(a, f))})
+        if type(local) is list: # we are syncing a list of files, not a dir
+            for f in sorted(local):
+                self.file.update({f:s3util.dzip_meta(f)})
+        else:
+            d = sorted(os.walk(local))
+            if len(d) == 0 and os.path.isfile(local):
+                self.logger.debug(local + ' is a file.')
+                self.isdir = False
+            for a,b,c in d:
+                self.root.update({a:s3util.dzip_meta(a)})
+                if c:
+                    for f in c:
+                        if f in IGNORE_FILES:
+                            continue
+                        self.file.update({os.path.join(a, f):s3util.dzip_meta(os.path.join(a, f))})
 
     def toS3Keys(self, keys, s3path, isdir = True):
         """
@@ -242,6 +246,7 @@ class DirectoryWalk():
             s3 = OrderedDict({})
             for k,v in keys.items():
                 if isdir:
+                    ## TODO ashvin - something about this is broken (omits first char) but we don't care about dirs
                     ## omit first
                     if os.path.join(s3path.split('/', 1)[1], k[len(self.local) + 1:] + '/') != '/':
                         s3.update({os.path.join(s3path.split('/', 1)[1], k[len(self.local) + 1:] + '/'):v})
@@ -695,7 +700,7 @@ class SmartS3Sync():
             to a local file before conversion to an s3 key for eTag lookup.
         """
         ## compare ETags to determine which files need to be uploaded
-        needs_sync = None
+        needs_sync = OrderedDict()
         for k,v in source.items():
             a = v['ETag'].replace('"', '')  ## handles formatting when result is from s3
             try:
@@ -703,19 +708,13 @@ class SmartS3Sync():
                 if a == b:
                     self.logger.debug('match found destination: ' + b + ' source: ' + a + ' s3path: ' + k)
                 else:
-                    if needs_sync:
-                        needs_sync[k] = v
-                    else:
-                        needs_sync = OrderedDict({k:v})
+                    needs_sync[k] = v
             except (KeyError, TypeError) as e:
                 if fromS3:
                     self.logger.debug(k + ':' + a + " needs download")
                 else:
                     self.logger.debug(v['local'] + ':'+ a + " needs upload")
-                if needs_sync:
-                    needs_sync[k] = v
-                else:
-                    needs_sync = OrderedDict({k:v})
+                needs_sync[k] = v
         return needs_sync
 
     def sync_file_toS3(self, force = False, show_progress = True):
@@ -898,6 +897,77 @@ class SmartS3Sync():
             self.verify_sync(needs_sync)
         else:
             self.logger.info('S3 bucket is up to date')
+
+
+    def sync_files_fromS3(self, force = False, show_progress = True):
+        """self.local is a list of files"""
+        utility = S3SyncUtility()
+
+        s3localdirkeys = self.walk.toS3Keys(self.walk.root, self.s3path)
+        s3localfilekeys = self.walk.toS3Keys(self.walk.file, self.s3path, isdir=False)
+
+        if s3localdirkeys:
+            s3LocalDirAndFileKeys = s3localdirkeys
+        else:
+            s3LocalDirAndFileKeys = OrderedDict({})
+
+        for k,v in s3localfilekeys.items():
+            self.logger.debug('updating dict with s3 keys ' + k + ':' + str(v))
+            s3LocalDirAndFileKeys.update({k:v})
+
+        if self.localcache:
+            self.logger.info('checking local cache...')
+            s3LocalDirAndFileKeys = self.check_localcache(s3LocalDirAndFileKeys)
+        else:
+           for k,v in s3LocalDirAndFileKeys.items():
+               self.logger.debug('not using localcache, calculating md5 sum now for "' + v['local'] + '"')
+               s3LocalDirAndFileKeys[k]['ETag'] = utility.md5(s3LocalDirAndFileKeys[k]['local'])
+               self.logger.debug(s3LocalDirAndFileKeys[k]['ETag'])
+
+        self.logger.debug('paginate (queryS3) bucket')
+        ## paginate bucket
+        all_s3_objects= self.queryS3(self.s3path[len(self.bucket) + 1:],
+                                     return_all_objects = True)
+
+        if force: # check tags
+            self.logger.debug('force: syncing all files')
+            needs_sync = s3LocalDirAndFileKeys
+        else:
+            self.logger.debug('comparing etags (md5sum)')
+            needs_sync = self.compare_etag(s3LocalDirAndFileKeys, all_s3_objects, fromS3 = True)
+
+        if needs_sync:
+            ## complete sync
+            for k, v in needs_sync.items():
+                v['local'] = str(self.bucket) + "/" + k
+
+                if not k.endswith('/'):
+                    try:
+                        self.logger.info('making local directory '
+                             + v['local'].rsplit('/', 1)[0])
+                        os.makedirs(v['local'].rsplit('/', 1)[0])
+                    except FileExistsError as e:
+                        self.logger.info('local directory already exists, skipping...')
+
+                    with open(v['local'], 'wb') as f:
+                        try:
+                            self.logger.info("download: " + k + " to "
+                                             + v['local'])
+
+
+                            self.s3cl.download_fileobj(
+                                    Bucket = self.bucket,
+                                    Key = k,
+                                    Fileobj= f)
+
+                        except ClientError as e:
+                            ## Access Denied, s3 permission error
+                            self.logger.exception("exiting")
+                            sys.exit()
+
+            self.verify_sync(needs_sync, fromS3 = True)
+        else:
+            self.logger.info('local files are up to date')
 
 
     def sync_dir_fromS3(self, force = False, show_progress = True):

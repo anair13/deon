@@ -9,6 +9,10 @@ from pathlib import Path
 from deon.s3sync import SmartS3Sync
 import logging
 
+import pandas as pd
+
+"""S3 link"""
+
 def sync_s3(local, s3path, fromS3, interval, force, **kwargs):
     s3_sync = SmartS3Sync(
         local = local,
@@ -17,6 +21,27 @@ def sync_s3(local, s3path, fromS3, interval, force, **kwargs):
     )
 
     s3_sync.sync(interval = interval, force = force, fromS3 = fromS3)
+
+def sync_files_s3(list_of_files, force=False, **kwargs):
+    # s3 prefix to search is the minimum shared prefix of list of files
+    s_files = sorted(list_of_files)
+    first, last = s_files[0], s_files[-1]
+    for i in range(min(len(first), len(last))):
+        if first[i] != last[i]:
+            break
+    result = first[:i]
+    prefix = result[:-result[::-1].index('/')]
+
+    s3_sync = SmartS3Sync(
+        local = list(list_of_files),
+        s3path = prefix,
+        **kwargs
+    )
+    s3_sync.sync_files_fromS3(force=force)
+
+"""Google cloud link: TODO"""
+
+"""Azure blob link: TODO"""
 
 """CLI"""
 
@@ -78,9 +103,28 @@ def syncdown(local_dir, force, interval, **kwargs):
 
 
 @metadata.command()
-def build():
-    """Build metadata index: TODO"""
-    pass
+@click.argument("local_dir")
+def load(local_dir):
+    """Load metadata and put it in a data frame, then start a ipdb session"""
+    path = Path("metadata") / local_dir
+    metadatas = []
+    paths = list(path.glob('**/*.json'))
+    for metadata_path in paths:
+        with metadata_path.open("r") as metadata_file:
+            metadata = json.load(metadata_file)
+        metadatas.append(metadata)
+
+    filenames = [str(path)[len("metadata/"):-5] for path in paths]
+    df = pd.DataFrame(metadatas, index=filenames)
+    print("loaded data frame df")
+    print("rows", len(df))
+    print("keys", df.keys())
+    import ipdb; ipdb.set_trace()
+
+    # examples
+    filtered_df = df[df['robot'] == "sawyer"]
+    print(filtered_df.index)
+    sync_files_s3(filtered_df.index, force=True)
 
 
 @cli.command()
