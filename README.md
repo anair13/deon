@@ -54,4 +54,4 @@ INFO:SmartS3Sync:local files are up to date
 
 Visualize hdf5 file (TODO)
 
-`deoncli metadata down <filename>.hdf5`
+`deoncli show <filename>.hdf5`
