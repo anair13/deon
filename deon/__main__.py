@@ -83,6 +83,7 @@ def down(local_path, force, interval, **kwargs):
 
 @cli.group()
 def metadata():
+    """Metadata management CLI"""
     pass
 
 
@@ -119,12 +120,21 @@ def load(local_dir):
     print("loaded data frame df")
     print("rows", len(df))
     print("keys", df.keys())
+    print("""
+example usage:
+filtered_df = df[df['robot'] == "sawyer"]
+print(filtered_df.index)
+sync_files_s3(filtered_df.index, force=False)
+"""
+    )
     import ipdb; ipdb.set_trace()
 
-    # examples
-    filtered_df = df[df['robot'] == "sawyer"]
-    print(filtered_df.index)
-    sync_files_s3(filtered_df.index, force=True)
+
+@cli.command()
+@click.argument("local_file")
+def show(local_dir):
+    """Visualize hdf5 file (TODO)"""
+    pass
 
 
 @cli.command()
