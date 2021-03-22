@@ -55,3 +55,36 @@ INFO:SmartS3Sync:local files are up to date
 Visualize hdf5 file (TODO)
 
 `deoncli show <filename>.hdf5`
+
+## Access Management
+
+The following snippet in S3 > Permissions > Bucket Policy shares the bucket with an organization:
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowOrganizationToReadBucket",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:PutObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::rail-robot-data-sharing-v1",
+                "arn:aws:s3:::rail-robot-data-sharing-v1/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:PrincipalOrgID": "o-<organization_id>"
+                }
+            }
+        }
+    ]
+}
+```
+
+The organization ID is available at https://console.aws.amazon.com/organizations/home. You can also share with individual users or have different access controls.
