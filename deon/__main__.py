@@ -1,19 +1,39 @@
 import click
-import boto3
-from botocore.exceptions import ClientError
-import os
-import json
-import h5py
 from pathlib import Path
+import json
 
-from deon.s3sync import SmartS3Sync
-import logging
+"""Utils"""
 
-import pandas as pd
+def write_json(path, contents, *args, **kwargs):
+    with path.open("w") as file:
+        json.dump(contents, file, *args, **kwargs)
+
+def parse_config(config):
+    metadata_bucket = config["metadata_bucket"]
+    data_buckets = []
+    for x in config["data_buckets"]:
+        data_buckets.append(x['bucket'])
+    return metadata_bucket, data_buckets
+
+def get_deon_config():
+    config_path = Path("deon_config.json")
+    if not config_path.is_file():
+        return None
+    with config_path.open("r") as config_file:
+        deon_config = json.load(config_file)
+    return deon_config
+
+def check_config():
+    deon_config = get_deon_config()
+    if deon_config is None:
+        print("Could not find deon_config.json file, please cd to the right dir or run deon init")
+        exit()
+    return deon_config
 
 """S3 link"""
 
 def sync_s3(local, s3path, fromS3, interval, force, **kwargs):
+    from deon.s3sync import SmartS3Sync
     s3_sync = SmartS3Sync(
         local = local,
         s3path = s3path,
@@ -23,6 +43,8 @@ def sync_s3(local, s3path, fromS3, interval, force, **kwargs):
     s3_sync.sync(interval = interval, force = force, fromS3 = fromS3)
 
 def sync_files_s3(list_of_files, force=False, **kwargs):
+    from deon.s3sync import SmartS3Sync
+
     # s3 prefix to search is the minimum shared prefix of list of files
     s_files = sorted(list_of_files)
     first, last = s_files[0], s_files[-1]
@@ -49,6 +71,30 @@ def sync_files_s3(list_of_files, force=False, **kwargs):
 def cli():
     pass
 
+
+@cli.command()
+@click.argument("path")
+@click.option("--data_buckets", default="rail-robot-data-sharing-v1", help="Data buckets, comma separated")
+def init(path, data_buckets):
+    """Initialize a local dataset at <path>"""
+    data_buckets_list = data_buckets.split(",")
+    data_buckets_dict = [dict(bucket_name=bucket_name) for bucket_name in data_buckets_list]
+    config = dict(
+        data_buckets=data_buckets_dict,
+    )
+
+    # set up directory structure
+    base_path = Path(path)
+    metadata_path = Path(path) / "metadata"
+    metadata_path.mkdir(parents=True, exist_ok=True)
+    for data_bucket in data_buckets_list:
+        data_bucket_path = Path(path) / data_bucket
+        data_bucket_path.mkdir(parents=True, exist_ok=True)
+
+    config_path = base_path / "deon_config.json"
+    write_json(config_path, config, indent=4)
+
+
 @cli.command()
 @click.argument("local_path")
 @click.option('--interval', is_flag=True)
@@ -61,6 +107,8 @@ def up(local_path, interval, force, **kwargs):
     local = local_path
     s3path = local_path
     fromS3 = False
+
+    check_config()
 
     sync_s3(local, s3path, fromS3, interval, force, **kwargs)
 
@@ -77,6 +125,8 @@ def down(local_path, force, interval, **kwargs):
     local = local_path
     s3path = local_path
     fromS3 = True
+
+    check_config()
 
     sync_s3(local, s3path, fromS3, interval, force, **kwargs)
 
@@ -99,6 +149,8 @@ def down(local_dir, force, interval, **kwargs):
     local = local_dir
     s3path = local_dir
 
+    check_config()
+
     s3_sync = SmartS3Sync(local = local, s3path = s3path, **kwargs)
     s3_sync.sync_metadata_fromS3(force = force, show_progress = False)
 
@@ -107,6 +159,11 @@ def down(local_dir, force, interval, **kwargs):
 @click.argument("local_dir")
 def load(local_dir):
     """Load metadata and put it in a data frame, then start a ipdb session"""
+    import pandas as pd
+    import json
+
+    check_config()
+
     path = Path("metadata") / local_dir
     metadatas = []
     paths = list(path.glob('**/*.json'))
@@ -140,6 +197,8 @@ def show(local_dir):
 @cli.command()
 def buckets():
     """Print list of accessible buckets from S3"""
+    import boto3
+
     s3client = boto3.client('s3')
     response = s3client.list_buckets()
     print('Existing buckets:')

@@ -129,5 +129,3 @@ dmypy.json
 .pyre/
 
 .DS_Store
-metadata/
-rail-robot-data-sharing-v1/

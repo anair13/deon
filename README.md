@@ -1,5 +1,5 @@
 # deon
-A lightweight utility for managing DEcentrailized ONline datasets
+A lightweight utility for managing DEcentralized ONline datasets
 
 The aim of this utility is to enable data sharing among several users, where
 each user may be continuously collecting new data. The command line interface
@@ -20,6 +20,10 @@ metadata is added to S3 header metadata and can be used for filtering data
 without downloading the entire dataset.
 
 ## Usage
+Initialize a deon repo (creates `<path>` and a config file inside)
+
+`deoncli init <path>`
+
 Print list of accessible buckets from S3
 
 `deoncli buckets`

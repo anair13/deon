@@ -106,7 +106,9 @@ from pathlib import Path
 def get_metajson(filepath):
     if filepath.endswith("hdf5"):
         hf = h5py.File(filepath, "r")
-        return hf.attrs['metadata']
+        metajson = hf.attrs['metadata']
+        # TODO: validate the metajson is the right schema
+        return metajson
     else:
         return "{}"
 
